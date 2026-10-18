@@ -1,5 +1,7 @@
 package com.prospectai.backend.search.service;
 
+import com.prospectai.backend.scoring.domain.ScoredLead;
+import com.prospectai.backend.scoring.service.ScoringService;
 import com.prospectai.backend.search.domain.Business;
 import com.prospectai.backend.search.domain.SearchSession;
 import com.prospectai.backend.search.domain.SearchStatus;
@@ -19,21 +21,30 @@ import java.util.concurrent.ConcurrentHashMap;
 public class SearchService {
 
     private final BusinessProvider provider;
+    private final ScoringService scoring;
     private final Map<String, SearchSession> sessions = new ConcurrentHashMap<>();
 
-    public SearchService(BusinessProvider provider) {
+    public SearchService(BusinessProvider provider, ScoringService scoring) {
         this.provider = provider;
+        this.scoring = scoring;
     }
 
     public SearchSession create(String city, String niche, int limit) {
-        List<Business> found = provider.search(city, niche, limit);
+
+        // busca as empresas no provider
+        var businesses = provider.search(city, niche, limit);
+
+        // aplica o score em todas
+        List<ScoredLead> leads = scoring.scoreAll(businesses);
+
         String id = UUID.randomUUID().toString().substring(0, 8);
+
         SearchSession session = new SearchSession(
                 id,
                 city,
                 niche,
                 SearchStatus.DONE,
-                found,
+                leads,
                 Instant.now(),
                 provider.policy().attribution()
         );
